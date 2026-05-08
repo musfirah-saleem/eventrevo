@@ -1,0 +1,11 @@
+node_modules
+client/node_modules
+server/node_modules
+client/build
+.git
+.gitignore
+*.md
+.env
+.env.*
+!.env.example
+server/config/gcs-key.json

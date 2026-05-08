@@ -1,0 +1,13 @@
+const router = require('express').Router();
+const { protect, requireRole } = require('../middleware/auth');
+const c = require('../controllers/djController');
+router.get('/', c.getDJs);
+router.get('/me', protect, requireRole('dj'), c.getMyProfile);
+router.put('/me', protect, requireRole('dj'), c.updateMyProfile);
+router.post('/me/media', protect, requireRole('dj'), c.addMediaLink);
+router.delete('/me/media/:mediaId', protect, requireRole('dj'), c.removeMediaLink);
+router.put('/me/availability', protect, requireRole('dj'), c.updateAvailability);
+router.post('/me/block-date', protect, requireRole('dj'), c.blockDate);
+router.delete('/me/block-date/:dateId', protect, requireRole('dj'), c.unblockDate);
+router.get('/:id', c.getDJ);
+module.exports = router;
