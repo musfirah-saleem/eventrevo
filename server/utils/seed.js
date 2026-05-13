@@ -8,14 +8,14 @@ async function seed() {
   await mongoose.connect(process.env.MONGODB_URI);
   console.log('✅ Connected to MongoDB');
 
-  const User = require('./server/models/User');
-  const DJProfile = require('./server/models/DJProfile');
+  const User = require('../models/User');
+  const DJProfile = require('../models/DJProfile');
 
   // Admin user
-  const adminPw = await bcrypt.hash('ChangeMe_Admin123!', 12);
+  const adminPw = await bcrypt.hash('admin123!', 12);
   const admin = await User.findOneAndUpdate(
-    { email: 'admin@eventrevo.com.au' },
-    { name: 'EventRevo Admin', email: 'admin@eventrevo.com.au', password: adminPw, role: 'admin', emailVerified: true },
+    { email: 'admin@gmail.com' },
+    { name: 'EventRevo Admin', email: 'admin@gmail.com', password: adminPw, role: 'admin', emailVerified: true },
     { upsert: true, new: true }
   );
   console.log('✅ Admin created:', admin.email);
@@ -57,7 +57,7 @@ async function seed() {
   }
 
   console.log('\n🎉 Seed complete!');
-  console.log('Admin: admin@eventrevo.com.au / ChangeMe_Admin123!');
+  console.log('Admin: admin@gmail.com / admin123!');
   console.log('DJ:    kastro@eventrevo.com.au / DJpass123!');
   await mongoose.disconnect();
 }

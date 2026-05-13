@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"507c88c4a8204b39863a4fd12d916f94","collectionName":"cronLock","type":"collection"}

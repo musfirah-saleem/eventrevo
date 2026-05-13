@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"0de4eb3a505c444bb686407ebc5eec7d","collectionName":"warehousetempstocks","type":"collection"}
