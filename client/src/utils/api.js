@@ -21,7 +21,23 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       localStorage.removeItem('er_token');
       localStorage.removeItem('er_user');
-      window.location.href = '/login';
+      // If the 401 comes from auth endpoints used for login/register/forgot-password,
+      // don't force a redirect to /login. Let the calling code handle the error so
+      // the UI can show a proper message without a full page reload that would
+      // clear input state. For other endpoints (protected routes) keep the
+      // existing behavior and sign the user out.
+      const reqUrl = (err.config?.url || '').toString();
+      const noRedirectPaths = ['/auth/login', '/auth/register', '/auth/forgot-password'];
+      // Match if the request url contains any of the auth-related paths (covers prefixed or full URLs)
+      const isAuthPath = noRedirectPaths.some(p => reqUrl.includes(p));
+
+      if (!isAuthPath) {
+        // For non-auth endpoints, sign the user out and redirect to login
+        localStorage.removeItem('er_token');
+        localStorage.removeItem('er_user');
+        window.location.href = '/login';
+      }
+      // Otherwise, fall through and reject so the caller can display errors.
     }
     return Promise.reject(err);
   }

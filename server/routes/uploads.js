@@ -6,8 +6,21 @@ const DJProfile = require('../models/DJProfile');
 const User = require('../models/User');
 const path = require('path');
 
-const storage = new Storage({ keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS });
-const bucket = storage.bucket(process.env.GCS_BUCKET_NAME);
+let storage;
+let bucket;
+let gcsInitError = null;
+try {
+  if (!process.env.GOOGLE_APPLICATION_CREDENTIALS || !process.env.GCS_BUCKET_NAME) {
+    throw new Error('Missing GCS configuration: set GOOGLE_APPLICATION_CREDENTIALS and GCS_BUCKET_NAME in environment');
+  }
+
+  storage = new Storage({ keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS });
+  bucket = storage.bucket(process.env.GCS_BUCKET_NAME);
+} catch (err) {
+  // store the initialization error so routes can return a helpful message
+  gcsInitError = err;
+  console.error('GCS initialization error:', err && err.message ? err.message : err);
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -20,11 +33,17 @@ const upload = multer({
 });
 
 const uploadToGCS = (file, folder) => new Promise((resolve, reject) => {
+  if (gcsInitError) return reject(new Error(`GCS not configured: ${gcsInitError.message}`));
+  if (!bucket) return reject(new Error('GCS bucket is not available'));
+
   const ext = path.extname(file.originalname);
   const filename = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
   const blob = bucket.file(filename);
   const stream = blob.createWriteStream({ metadata: { contentType: file.mimetype }, resumable: false });
-  stream.on('error', reject);
+  stream.on('error', (err) => {
+    console.error('Error uploading to GCS:', err && err.message ? err.message : err);
+    reject(err);
+  });
   stream.on('finish', () => resolve(`https://storage.googleapis.com/${process.env.GCS_BUCKET_NAME}/${filename}`));
   stream.end(file.buffer);
 });
@@ -32,6 +51,7 @@ const uploadToGCS = (file, folder) => new Promise((resolve, reject) => {
 // Upload profile image
 router.post('/profile', protect, upload.single('image'), async (req, res) => {
   try {
+    if (gcsInitError) return res.status(500).json({ success: false, error: `Server misconfiguration: ${gcsInitError.message}` });
     if (!req.file) return res.status(400).json({ success: false, error: 'No file' });
     const url = await uploadToGCS(req.file, `profiles/${req.user.id}`);
     await User.findByIdAndUpdate(req.user.id, { avatar: url });
@@ -39,12 +59,16 @@ router.post('/profile', protect, upload.single('image'), async (req, res) => {
       await DJProfile.findOneAndUpdate({ user: req.user.id }, { profileImage: url });
     }
     res.json({ success: true, url });
-  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+  } catch (err) {
+    console.error('Profile upload error:', err && err.stack ? err.stack : err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Upload gallery image (DJ only)
 router.post('/gallery', protect, requireRole('dj'), upload.single('image'), async (req, res) => {
   try {
+    if (gcsInitError) return res.status(500).json({ success: false, error: `Server misconfiguration: ${gcsInitError.message}` });
     if (!req.file) return res.status(400).json({ success: false, error: 'No file' });
     const url = await uploadToGCS(req.file, `gallery/${req.user.id}`);
     const dj = await DJProfile.findOneAndUpdate(
@@ -53,7 +77,10 @@ router.post('/gallery', protect, requireRole('dj'), upload.single('image'), asyn
       { new: true }
     );
     res.json({ success: true, url, galleryImages: dj.galleryImages });
-  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+  } catch (err) {
+    console.error('Gallery upload error:', err && err.stack ? err.stack : err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Delete gallery image
