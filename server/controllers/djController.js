@@ -67,7 +67,7 @@ exports.getMyProfile = async (req, res) => {
 // PUT /api/djs/me — update own profile
 exports.updateMyProfile = async (req, res) => {
   try {
-    const allowed = ['stageName','bio','location','hourlyRate','minimumHours','packageDetails','genres','eventTypes','socials','profileImage'];
+    const allowed = ['stageName', 'bio', 'location', 'hourlyRate', 'minimumHours', 'packageDetails', 'genres', 'eventTypes', 'socials', 'profileImage', 'advanceBookingPercentage', 'minimumAdvanceAmount'];
     const updates = {};
     allowed.forEach(field => { if (req.body[field] !== undefined) updates[field] = req.body[field]; });
 

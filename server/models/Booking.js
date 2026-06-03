@@ -38,8 +38,12 @@ const bookingSchema = new mongoose.Schema({
     enum: ['unpaid','deposit_paid','fully_paid','refunded'],
     default: 'unpaid',
   },
+  amountPaid: { type: Number, default: 0 },
+  remainingAmount: { type: Number, default: 0 },
+  lastPaymentAt: { type: Date },
   stripePaymentIntentId: { type: String },
   stripeDepositId: { type: String },
+  stripeFinalPaymentIntentId: { type: String },
 
   // Google Calendar
   googleEventId: { type: String },

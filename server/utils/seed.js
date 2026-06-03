@@ -12,7 +12,7 @@ async function seed() {
   const DJProfile = require('../models/DJProfile');
 
   // Admin user
-  const adminPw = await bcrypt.hash(' ', 12);
+  const adminPw = await bcrypt.hash('admin123!', 12);
   const admin = await User.findOneAndUpdate(
     { email: 'admin@gmail.com' },
     { name: 'EventRevo Admin', email: 'admin@gmail.com', password: adminPw, role: 'admin', emailVerified: true },

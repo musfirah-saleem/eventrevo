@@ -22,13 +22,29 @@ const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: 'Too
 app.use('/api/auth/', authLimiter);
 
 // ── CORS
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true,
-}));
+const allowedOrigins = new Set(
+  [
+    process.env.CLIENT_URL,
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+  ].filter(Boolean)
+);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Allow non-browser tools or same-origin requests with no Origin header
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.has(origin)) return callback(null, true);
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
+  })
+);
 
 // ── Body parsing (stripe webhook needs raw body)
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -44,6 +60,7 @@ app.use('/api/djs',          require('./routes/djs'));
 app.use('/api/bookings',     require('./routes/bookings'));
 app.use('/api/uploads',      require('./routes/uploads'));
 app.use('/api/stripe',       require('./routes/stripe'));
+app.use('/api/payments',     require('./routes/stripe')); // legacy alias
 app.use('/api/calendar',     require('./routes/calendar'));
 app.use('/api/admin',        require('./routes/admin'));
 app.use('/api/reviews',      require('./routes/reviews'));

@@ -2,8 +2,71 @@
 const Booking = require('../models/Booking');
 const DJProfile = require('../models/DJProfile');
 const User = require('../models/User');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { sendBookingRequestEmail, sendBookingConfirmedEmail, sendBookingDeclinedEmail } = require('../utils/email');
 const { createCalendarEvent, deleteCalendarEvent } = require('../utils/googleCalendar');
+
+const reconcilePaymentTracking = async (booking) => {
+  if (!booking) return booking;
+
+  const totalAmount = Number(booking.totalAmount || 0);
+  let amountPaid = Number(booking.amountPaid || 0);
+  let remainingAmount = Number(booking.remainingAmount || 0);
+
+  // Fallback safety: if webhook was missed but a PaymentIntent exists,
+  // verify with Stripe directly and repair status.
+  if (
+    booking.paymentStatus === 'unpaid' &&
+    booking.stripePaymentIntentId &&
+    Number(booking.amountPaid || 0) === 0
+  ) {
+    try {
+      const intent = await stripe.paymentIntents.retrieve(booking.stripePaymentIntentId);
+      if (intent?.status === 'succeeded') {
+        const paidFromStripe = Number(intent.amount_received || 0) / 100;
+        const inferredRemaining = Math.max(totalAmount - paidFromStripe, 0);
+        booking.paymentStatus = inferredRemaining <= 0 ? 'fully_paid' : 'deposit_paid';
+        booking.amountPaid = inferredRemaining <= 0 ? totalAmount : paidFromStripe;
+        booking.remainingAmount = inferredRemaining;
+        booking.lastPaymentAt = new Date();
+        if (booking.paymentStatus === 'deposit_paid') {
+          booking.stripeDepositId = intent.id;
+        } else {
+          booking.stripeFinalPaymentIntentId = intent.id;
+        }
+        await booking.save();
+      }
+    } catch (err) {
+      // Keep reconciliation non-blocking for list/detail calls.
+      console.error('Stripe intent reconciliation failed:', err.message);
+    }
+  }
+
+  if (booking.paymentStatus === 'fully_paid') {
+    amountPaid = totalAmount;
+    remainingAmount = 0;
+  } else if (booking.paymentStatus === 'deposit_paid') {
+    if (amountPaid <= 0) {
+      amountPaid = Number(booking.depositAmount || 0);
+    }
+    remainingAmount = Math.max(totalAmount - amountPaid, 0);
+  } else if (booking.paymentStatus === 'unpaid') {
+    amountPaid = 0;
+    remainingAmount = totalAmount;
+  }
+
+  const shouldUpdate =
+    Math.abs(Number(booking.amountPaid || 0) - amountPaid) > 0.0001 ||
+    Math.abs(Number(booking.remainingAmount || 0) - remainingAmount) > 0.0001;
+
+  if (shouldUpdate) {
+    booking.amountPaid = amountPaid;
+    booking.remainingAmount = remainingAmount;
+    await booking.save();
+  }
+
+  return booking;
+};
 
 // POST /api/bookings
 exports.createBooking = async (req, res) => {
@@ -24,8 +87,14 @@ exports.createBooking = async (req, res) => {
     }
 
     const totalAmount = dj.hourlyRate * duration;
-    const depositPercentage = Number(process.env.DEPOSIT_PERCENTAGE || 20);
-    const depositAmount = totalAmount * (depositPercentage / 100);
+    const fallbackDepositPercentage = Number(process.env.DEPOSIT_PERCENTAGE || 20);
+    const depositPercentage =
+      dj.advanceBookingPercentage && dj.advanceBookingPercentage > 0
+        ? dj.advanceBookingPercentage
+        : fallbackDepositPercentage;
+    const depositAmountByPercent = totalAmount * (depositPercentage / 100);
+    const minimumAdvanceAmount = Number(dj.minimumAdvanceAmount || 0);
+    const depositAmount = Math.max(depositAmountByPercent, minimumAdvanceAmount);
 
     const bookingData = {
       djProfile: djProfileId,
@@ -33,6 +102,8 @@ exports.createBooking = async (req, res) => {
       location, notes, guestCount,
       quotedRate: dj.hourlyRate,
       totalAmount, depositAmount, depositPercentage,
+      amountPaid: 0,
+      remainingAmount: totalAmount,
     };
 
     // Attach customer or guest
@@ -90,6 +161,7 @@ exports.getBookings = async (req, res) => {
       .populate({ path: 'djProfile', populate: { path: 'user', select: 'name email' } })
       .sort({ createdAt: -1 });
 
+    await Promise.all(bookings.map(reconcilePaymentTracking));
     res.json({ success: true, data: bookings });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to fetch bookings' });
@@ -103,6 +175,7 @@ exports.getBooking = async (req, res) => {
       .populate('customer', 'name email phone')
       .populate({ path: 'djProfile', populate: { path: 'user', select: 'name email' } });
     if (!booking) return res.status(404).json({ success: false, error: 'Booking not found' });
+    await reconcilePaymentTracking(booking);
     res.json({ success: true, data: booking });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to fetch booking' });

@@ -57,6 +57,10 @@ const djProfileSchema = new mongoose.Schema({
 
   // Stats (denormalised for speed)
   averageRating: { type: Number, default: 0, min: 0, max: 5 },
+  advanceBookingPercentage: {type: Number, default: 0, min: 0, max: 100 },
+  // Absolute minimum deposit (AUD) the DJ requires to secure a booking.
+  // If 0, we fall back to percentage-only deposit logic.
+  minimumAdvanceAmount: { type: Number, default: 0, min: 0 },
   totalReviews: { type: Number, default: 0 },
   totalBookings: { type: Number, default: 0 },
 
