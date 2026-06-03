@@ -23,7 +23,7 @@ export function StatusBadge({ status }) {
     pending:'Pending', confirmed:'Confirmed', declined:'Declined',
     completed:'Completed', cancelled:'Cancelled', approved:'Approved',
     pending_review:'Under Review', rejected:'Rejected',
-    unpaid:'Unpaid', deposit_paid:'Deposit Paid', fully_paid:'Paid',
+    unpaid:'Unpaid', deposit_paid:'Advance Paid', fully_paid:'Fully Paid',
   };
   return <span className={`badge ${map[status] || 'badge-pending'}`}>{labels[status] || status}</span>;
 }
@@ -125,6 +125,11 @@ export function BookingRow({ booking, role, onAction }) {
       </div>
       <div style={{ textAlign:'right', flexShrink:0 }}>
         <div style={{ fontSize:'.95rem', fontWeight:500, color:'var(--lime)', marginBottom:'.3rem' }}>A${booking.totalAmount?.toFixed(0)}</div>
+        {(Number(booking.amountPaid || 0) > 0 || Number(booking.remainingAmount || 0) > 0) && (
+          <div style={{ fontSize: '.68rem', color: 'var(--muted)', marginBottom: '.35rem' }}>
+            Paid A${Number(booking.amountPaid || 0).toFixed(0)} · Remaining A${Math.max(Number(booking.remainingAmount || 0), 0).toFixed(0)}
+          </div>
+        )}
         <div style={{ display:'flex', gap:'.35rem', justifyContent:'flex-end', flexWrap:'wrap' }}>
           {role === 'dj' && booking.status === 'pending' && (
             <>
@@ -134,6 +139,9 @@ export function BookingRow({ booking, role, onAction }) {
           )}
           {role === 'customer' && booking.status === 'confirmed' && booking.paymentStatus === 'unpaid' && (
             <Link to={`/checkout/${booking._id}`} className="btn btn-lime btn-sm">Pay Deposit</Link>
+          )}
+          {role === 'customer' && booking.status === 'confirmed' && booking.paymentStatus === 'deposit_paid' && (
+            <Link to={`/checkout/${booking._id}`} className="btn btn-lime btn-sm">Pay Remaining</Link>
           )}
           {role === 'customer' && booking.status === 'pending' && (
             <button className="btn btn-danger btn-sm" onClick={() => onAction(booking._id,'cancel')}>Cancel</button>

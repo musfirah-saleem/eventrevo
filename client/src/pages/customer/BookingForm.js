@@ -197,7 +197,16 @@ export default function BookingForm() {
 
   const duration = calculateDuration(form.startTime, form.endTime);
   const total = dj?.hourlyRate ? Math.round(dj.hourlyRate * duration) : 0;
-  const deposit = Math.round(total * 0.2);
+  const depositPercentage =
+    dj?.advanceBookingPercentage && dj.advanceBookingPercentage > 0
+      ? dj.advanceBookingPercentage
+      : 20;
+  const minimumAdvanceAmount = Number(dj?.minimumAdvanceAmount || 0);
+  const requiredDepositAmount = Math.max(
+    total * (depositPercentage / 100),
+    minimumAdvanceAmount
+  );
+  const deposit = Math.round(requiredDepositAmount);
 
   const handleChange = (field, value) => {
     setForm(prev => ({
@@ -751,7 +760,7 @@ export default function BookingForm() {
               marginTop: '.8rem',
             }}
           >
-            No payment required now. 20% deposit due on confirmation.
+            No payment required now. Your required advance deposit of A${deposit} will be due when the DJ confirms.
           </p>
         </form>
       </div>

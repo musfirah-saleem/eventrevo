@@ -19,15 +19,13 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('er_token');
-      localStorage.removeItem('er_user');
       // If the 401 comes from auth endpoints used for login/register/forgot-password,
       // don't force a redirect to /login. Let the calling code handle the error so
       // the UI can show a proper message without a full page reload that would
       // clear input state. For other endpoints (protected routes) keep the
       // existing behavior and sign the user out.
       const reqUrl = (err.config?.url || '').toString();
-      const noRedirectPaths = ['/auth/login', '/auth/register', '/auth/forgot-password'];
+      const noRedirectPaths = ['/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password'];
       // Match if the request url contains any of the auth-related paths (covers prefixed or full URLs)
       const isAuthPath = noRedirectPaths.some(p => reqUrl.includes(p));
 
@@ -99,6 +97,8 @@ export const adminAPI = {
 // ── Stripe
 export const stripeAPI = {
   createPaymentIntent: (bookingId) => api.post('/stripe/create-payment-intent', { bookingId }),
+  createRemainingPaymentIntent: (bookingId) => api.post('/stripe/create-remaining-payment-intent', { bookingId }),
+  getTransactions: (params) => api.get('/stripe/transactions', { params }),
 };
 
 // ── Calendar

@@ -223,7 +223,11 @@ export default function DJProfilePage() {
               Book This DJ
             </Link>
             <p style={{ fontSize: '.68rem', color: 'var(--muted)', textAlign: 'center', marginTop: '.7rem', lineHeight: 1.6 }}>
-              No payment now. 20% deposit on confirmation. Contracts included.
+              No payment now.{' '}
+              {Number(dj.minimumAdvanceAmount || 0) > 0
+                ? `Minimum advance deposit of A$${Number(dj.minimumAdvanceAmount).toFixed(0)} on confirmation.`
+                : `${dj.advanceBookingPercentage > 0 ? `${dj.advanceBookingPercentage}% deposit` : '20% deposit'} on confirmation.`}{' '}
+              Contracts included.
             </p>
           </div>
         </div>

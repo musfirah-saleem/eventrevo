@@ -111,6 +111,8 @@ export default function DJProfileEdit() {
     hourlyRate: '',
     minimumHours: '2',
     packageDetails: '',
+    advanceBookingPercentage: '0',
+    minimumAdvanceAmount: '0',
     genres: [],
     eventTypes: [],
     socials: {
@@ -170,6 +172,18 @@ export default function DJProfileEdit() {
       .trim()
       .max(700, 'Package details cannot be more than 700 characters'),
 
+    advanceBookingPercentage: numberField('Advance booking amount')
+      .required('Advance booking amount is required')
+      .integer('Advance booking amount must be a whole number')
+      .min(0, 'Advance booking amount cannot be less than 0%')
+      .max(100, 'Advance booking amount cannot be more than 100%'),
+
+    minimumAdvanceAmount: numberField('Minimum advance deposit')
+      .optional()
+      .integer('Minimum advance deposit must be a whole number')
+      .min(0, 'Minimum advance deposit cannot be less than A$0')
+      .max(10000000, 'Minimum advance deposit is too large'),
+
     genres: yup
       .array()
       .of(yup.string().oneOf(ALL_GENRES))
@@ -208,6 +222,12 @@ export default function DJProfileEdit() {
           packageDetails: d.packageDetails || '',
           genres: d.genres || [],
           eventTypes: d.eventTypes || [],
+          advanceBookingPercentage:
+            d.advanceBookingPercentage !== undefined
+              ? String(d.advanceBookingPercentage)
+              : '0',
+          minimumAdvanceAmount:
+            d.minimumAdvanceAmount !== undefined ? String(d.minimumAdvanceAmount) : '0',
           socials: {
             instagram: d.socials?.instagram || '',
             facebook: d.socials?.facebook || '',
@@ -300,6 +320,15 @@ export default function DJProfileEdit() {
     return validationErrors;
   };
 
+  const handlePercentageChange = (field, value) => {
+    const numericValue = value.replace(/\D/g, '');
+
+    handleChange(
+      field,
+      numericValue === '' ? '' : String(Math.min(Number(numericValue), 100))
+    );
+  };
+
   const handleSave = async e => {
     if (e) {
       e.preventDefault();
@@ -325,6 +354,8 @@ export default function DJProfileEdit() {
         packageDetails: validatedData.packageDetails?.trim() || '',
         genres: validatedData.genres,
         eventTypes: validatedData.eventTypes,
+        advanceBookingPercentage: Number(validatedData.advanceBookingPercentage),
+        minimumAdvanceAmount: Number(validatedData.minimumAdvanceAmount || 0),
         socials: {
           instagram: validatedData.socials.instagram?.trim() || '',
           facebook: validatedData.socials.facebook?.trim() || '',
@@ -482,11 +513,10 @@ export default function DJProfileEdit() {
           <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
             {profile?.status && (
               <span
-                className={`badge ${
-                  profile.status === 'approved'
-                    ? 'badge-approved'
-                    : 'badge-pending_review'
-                }`}
+                className={`badge ${profile.status === 'approved'
+                  ? 'badge-approved'
+                  : 'badge-pending_review'
+                  }`}
               >
                 {profile.status === 'approved'
                   ? 'Live on Marketplace'
@@ -737,6 +767,54 @@ export default function DJProfileEdit() {
                   <div className="form-error">{errors.minimumHours}</div>
                 )}
               </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="advanceBookingPercentage">
+                  Advance Booking Amount (%) *
+                </label>
+
+                <input
+                  id="advanceBookingPercentage"
+                  type="text"
+                  name="dj_advance_booking_percentage"
+                  className="form-input"
+                  value={form.advanceBookingPercentage}
+                  onChange={e =>
+                    handlePercentageChange('advanceBookingPercentage', e.target.value)
+                  }
+                  onBlur={() => validateField('advanceBookingPercentage')}
+                  placeholder="e.g. 20"
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
+
+                {errors.advanceBookingPercentage && (
+                  <div className="form-error">{errors.advanceBookingPercentage}</div>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="minimumAdvanceAmount">
+                  Minimum Advance Deposit (A$)
+                </label>
+
+                <input
+                  id="minimumAdvanceAmount"
+                  type="text"
+                  name="dj_minimum_advance_amount"
+                  className="form-input"
+                  value={form.minimumAdvanceAmount}
+                  onChange={e => handleChange('minimumAdvanceAmount', e.target.value)}
+                  onBlur={() => validateField('minimumAdvanceAmount')}
+                  placeholder="e.g. 50"
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
+
+                {errors.minimumAdvanceAmount && (
+                  <div className="form-error">{errors.minimumAdvanceAmount}</div>
+                )}
+              </div>
             </div>
 
             <div className="form-group">
@@ -771,9 +849,8 @@ export default function DJProfileEdit() {
                 <button
                   key={genre}
                   type="button"
-                  className={`genre-chip ${
-                    form.genres.includes(genre) ? 'active' : ''
-                  }`}
+                  className={`genre-chip ${form.genres.includes(genre) ? 'active' : ''
+                    }`}
                   onClick={() => toggleChip(form.genres, genre, 'genres')}
                 >
                   {genre}
@@ -797,9 +874,8 @@ export default function DJProfileEdit() {
                 <button
                   key={eventType}
                   type="button"
-                  className={`genre-chip ${
-                    form.eventTypes.includes(eventType) ? 'active' : ''
-                  }`}
+                  className={`genre-chip ${form.eventTypes.includes(eventType) ? 'active' : ''
+                    }`}
                   onClick={() =>
                     toggleChip(form.eventTypes, eventType, 'eventTypes')
                   }
