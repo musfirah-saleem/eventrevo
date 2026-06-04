@@ -217,7 +217,7 @@ exports.createBooking = async (req, res) => {
       await sendBookingRequestEmail({
         djEmail: dj.user.email, djName: dj.stageName,
         customerName: req.user?.name || guestName,
-        eventType, eventDate: new Date(eventDate).toLocaleDateString('en-AU', { weekday:'long', year:'numeric', month:'long', day:'numeric' }),
+        eventType, eventDate: new Date(eventDate).toLocaleDateString('en-AU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
         location, bookingId: booking._id.toString(),
       });
     } catch (e) { console.error('Email failed:', e.message); }
@@ -314,7 +314,7 @@ exports.updateBookingStatus = async (req, res) => {
           customerEmail: booking.customer.email, customerName: booking.customer.name,
           djStageName: booking.djProfile.stageName,
           eventType: booking.eventType,
-          eventDate: booking.eventDate.toLocaleDateString('en-AU', { weekday:'long', year:'numeric', month:'long', day:'numeric' }),
+          eventDate: booking.eventDate.toLocaleDateString('en-AU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
           location: booking.location, bookingId: booking._id.toString(),
           depositAmount: booking.depositAmount,
         });
@@ -330,14 +330,14 @@ exports.updateBookingStatus = async (req, res) => {
           djStageName: booking.djProfile.stageName,
           eventDate: booking.eventDate.toLocaleDateString('en-AU'),
         });
-      } catch (e) {}
+      } catch (e) { }
 
     } else if (action === 'cancel') {
       booking.status = 'cancelled';
       if (booking.googleEventId && booking.djProfile.googleAccessToken) {
         try {
           await deleteCalendarEvent({ accessToken: booking.djProfile.googleAccessToken, eventId: booking.googleEventId });
-        } catch (e) {}
+        } catch (e) { }
       }
       await booking.save();
 
