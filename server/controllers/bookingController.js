@@ -76,6 +76,92 @@ exports.createBooking = async (req, res) => {
     const dj = await DJProfile.findById(djProfileId).populate('user', 'name email');
     if (!dj || dj.status !== 'approved') return res.status(404).json({ success: false, error: 'DJ not available' });
 
+    // Availability check: ensure requested date/time is within DJ weeklyAvailability
+    const toMinutes = t => {
+      const [h, m] = (t || '').split(':').map(Number);
+      return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : NaN;
+    };
+
+    const normalizeDateStr = d => {
+      const dt = new Date(d);
+      if (Number.isNaN(dt.getTime())) return null;
+      const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 10);
+    };
+
+    const checkAvailability = (djProfile, eventDateStr, reqStart, reqEnd) => {
+      // blockedDates
+      const normalizedEvent = normalizeDateStr(eventDateStr);
+      if (!normalizedEvent) return { ok: false, message: 'Invalid event date' };
+
+      if (Array.isArray(djProfile.blockedDates)) {
+        const blocked = djProfile.blockedDates.some(b => {
+          try {
+            const bstr = normalizeDateStr(b.date || b);
+            return bstr === normalizedEvent;
+          } catch (e) { return false; }
+        });
+        if (blocked) return { ok: false, message: 'DJ has blocked this date' };
+      }
+
+      const dateObj = new Date(eventDateStr + 'T00:00:00');
+      if (Number.isNaN(dateObj.getTime())) return { ok: false, message: 'Invalid event date' };
+      const day = dateObj.getDay(); // 0-6
+
+      const reqS = toMinutes(reqStart);
+      const reqE = toMinutes(reqEnd);
+      if (!Number.isFinite(reqS) || !Number.isFinite(reqE)) return { ok: false, message: 'Invalid start/end time' };
+
+      let reqStartAbs = reqS;
+      let reqEndAbs = reqE;
+      if (reqEndAbs <= reqStartAbs) reqEndAbs += 24 * 60; // overnight booking
+
+      const weekly = Array.isArray(djProfile.weeklyAvailability) ? djProfile.weeklyAvailability : [];
+      const daySchedule = weekly.find(w => Number(w.dayOfWeek) === Number(day));
+      const prevSchedule = weekly.find(w => Number(w.dayOfWeek) === ((Number(day) + 6) % 7));
+
+      const withinSchedule = schedule => {
+        if (!schedule || !schedule.isAvailable) return false;
+        const s = toMinutes(schedule.startTime);
+        const e = toMinutes(schedule.endTime);
+        if (!Number.isFinite(s) || !Number.isFinite(e)) return false;
+        let sAbs = s;
+        let eAbs = e;
+        if (eAbs <= sAbs) eAbs += 24 * 60; // overnight availability
+
+        // For same-day schedule we compare against request times anchored to the same day
+        return reqStartAbs >= sAbs && reqEndAbs <= eAbs;
+      };
+
+      if (withinSchedule(daySchedule)) return { ok: true };
+
+      // Check previous day's spill-over (e.g., Fri 18:00-02:00 covering Sat 01:00)
+      if (prevSchedule && prevSchedule.isAvailable) {
+        const ps = toMinutes(prevSchedule.startTime);
+        const pe = toMinutes(prevSchedule.endTime);
+        if (Number.isFinite(ps) && Number.isFinite(pe)) {
+          let psAbs = ps;
+          let peAbs = pe;
+          if (peAbs <= psAbs) peAbs += 24 * 60; // overnight
+
+          // The portion that falls on eventDate is minutes >= 24*60 in the prev schedule
+          if (peAbs > 24 * 60) {
+            const spillStartOnEvent = Math.max(psAbs, 24 * 60) - 24 * 60; // e.g. 0..pe-24*60
+            const spillEndOnEvent = peAbs - 24 * 60;
+
+            if (reqStartAbs >= spillStartOnEvent && reqEndAbs <= spillEndOnEvent) {
+              return { ok: true };
+            }
+          }
+        }
+      }
+
+      return { ok: false, message: 'DJ is not available at the requested date/time' };
+    };
+
+    const availCheck = checkAvailability(dj, eventDate, startTime, endTime);
+    if (!availCheck.ok) return res.status(400).json({ success: false, error: availCheck.message });
+
     // Calculate duration
     const [sh, sm] = startTime.split(':').map(Number);
     const [eh, em] = endTime.split(':').map(Number);

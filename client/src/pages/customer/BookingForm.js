@@ -55,6 +55,7 @@ export default function BookingForm() {
   const [pageLoading, setPageLoading] = useState(true);
   const [errors, setErrors] = useState({});
   const [apiError, setApiError] = useState('');
+  const [availability, setAvailability] = useState({ ok: true, message: '' });
 
   const [form, setForm] = useState({
     eventType: '',
@@ -227,6 +228,100 @@ export default function BookingForm() {
 
     setApiError('');
   };
+
+  const toMinutes = t => {
+    if (!t) return NaN;
+    const [h, m] = t.split(':').map(Number);
+    return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : NaN;
+  };
+
+  const normalizeDate = d => {
+    if (!d) return null;
+    const dt = new Date(d + 'T00:00:00');
+    if (Number.isNaN(dt.getTime())) return null;
+    const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 10);
+  };
+
+  const checkAvailability = (djProfile, eventDateStr, reqStart, reqEnd) => {
+    if (!djProfile) return { ok: true, message: '' };
+
+    const normalized = normalizeDate(eventDateStr);
+    if (!normalized) return { ok: false, message: 'Invalid date' };
+
+    // blocked dates
+    if (Array.isArray(djProfile.blockedDates)) {
+      const blocked = djProfile.blockedDates.some(b => {
+        try {
+          const bstr = normalizeDate(typeof b === 'string' ? b : (b.date || b));
+          return bstr === normalized;
+        } catch (e) { return false; }
+      });
+      if (blocked) return { ok: false, message: 'DJ is not available on this date' };
+    }
+
+    const dateObj = new Date(eventDateStr + 'T00:00:00');
+    if (Number.isNaN(dateObj.getTime())) return { ok: false, message: 'Invalid date' };
+    const day = dateObj.getDay();
+
+    const reqS = toMinutes(reqStart);
+    const reqE = toMinutes(reqEnd);
+    if (!Number.isFinite(reqS) || !Number.isFinite(reqE)) return { ok: false, message: 'Enter valid start and end times' };
+
+    let reqStartAbs = reqS;
+    let reqEndAbs = reqE;
+    if (reqEndAbs <= reqStartAbs) reqEndAbs += 24 * 60; // overnight booking
+
+    const weekly = Array.isArray(djProfile.weeklyAvailability) ? djProfile.weeklyAvailability : [];
+    const daySchedule = weekly.find(w => Number(w.dayOfWeek) === Number(day));
+    const prevSchedule = weekly.find(w => Number(w.dayOfWeek) === ((Number(day) + 6) % 7));
+
+    const withinSchedule = schedule => {
+      if (!schedule || !schedule.isAvailable) return false;
+      const s = toMinutes(schedule.startTime);
+      const e = toMinutes(schedule.endTime);
+      if (!Number.isFinite(s) || !Number.isFinite(e)) return false;
+      let sAbs = s;
+      let eAbs = e;
+      if (eAbs <= sAbs) eAbs += 24 * 60; // overnight availability
+
+      return reqStartAbs >= sAbs && reqEndAbs <= eAbs;
+    };
+
+    if (withinSchedule(daySchedule)) return { ok: true, message: '' };
+
+    // previous day's overnight spill
+    if (prevSchedule && prevSchedule.isAvailable) {
+      const ps = toMinutes(prevSchedule.startTime);
+      const pe = toMinutes(prevSchedule.endTime);
+      if (Number.isFinite(ps) && Number.isFinite(pe)) {
+        let psAbs = ps;
+        let peAbs = pe;
+        if (peAbs <= psAbs) peAbs += 24 * 60;
+
+        if (peAbs > 24 * 60) {
+          const spillStartOnEvent = Math.max(psAbs, 24 * 60) - 24 * 60;
+          const spillEndOnEvent = peAbs - 24 * 60;
+          if (reqStartAbs >= spillStartOnEvent && reqEndAbs <= spillEndOnEvent) {
+            return { ok: true, message: '' };
+          }
+        }
+      }
+    }
+
+    return { ok: false, message: 'DJ is not available at the selected time' };
+  };
+
+  useEffect(() => {
+    if (!dj) return;
+    if (!form.eventDate) {
+      setAvailability({ ok: true, message: '' });
+      return;
+    }
+
+    const result = checkAvailability(dj, form.eventDate, form.startTime, form.endTime);
+    setAvailability(result);
+  }, [dj, form.eventDate, form.startTime, form.endTime]);
 
   const validateField = async field => {
     try {
@@ -516,6 +611,10 @@ export default function BookingForm() {
                 {errors.eventDate && (
                   <div className="form-error">{errors.eventDate}</div>
                 )}
+
+                {availability && !availability.ok && (
+                  <div className="form-error" style={{ marginTop: '.5rem' }}>{availability.message}</div>
+                )}
               </div>
 
               <div className="form-group">
@@ -562,6 +661,10 @@ export default function BookingForm() {
                 {errors.startTime && (
                   <div className="form-error">{errors.startTime}</div>
                 )}
+
+                {availability && !availability.ok && (
+                  <div className="form-error" style={{ marginTop: '.5rem' }}>{availability.message}</div>
+                )}
               </div>
 
               <div className="form-group">
@@ -582,6 +685,10 @@ export default function BookingForm() {
 
                 {errors.endTime && (
                   <div className="form-error">{errors.endTime}</div>
+                )}
+
+                {availability && !availability.ok && (
+                  <div className="form-error" style={{ marginTop: '.5rem' }}>{availability.message}</div>
                 )}
               </div>
             </div>
@@ -737,7 +844,7 @@ export default function BookingForm() {
             type="submit"
             className="btn btn-lime btn-full"
             style={{ padding: '1rem' }}
-            disabled={loading}
+            disabled={loading || !availability.ok}
           >
             {loading ? (
               <>
@@ -751,6 +858,10 @@ export default function BookingForm() {
               'Send Booking Request'
             )}
           </button>
+
+          {!availability.ok && (
+            <p style={{ color: 'var(--muted)', fontSize: '.82rem', marginTop: '.6rem' }}>{availability.message}</p>
+          )}
 
           <p
             style={{
