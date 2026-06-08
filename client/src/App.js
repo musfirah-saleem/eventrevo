@@ -71,9 +71,9 @@ export default function App() {
       <Routes>
         {/* Public */}
         <Route path="/" element={<HomePage />} />
-        {/* <Route path="/djs" element={<BrowsePage />} />
+         <Route path="/djs" element={<BrowsePage />} />
         <Route path="/djs/:id" element={<DJProfilePage />} />
-        <Route path="/book/:djId" element={<BookingForm />} /> */}
+        <Route path="/book/:djId" element={<BookingForm />} /> 
 
         {/* Auth */}
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />

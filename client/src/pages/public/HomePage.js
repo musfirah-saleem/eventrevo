@@ -703,7 +703,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* FEATURES */}z
+      {/* FEATURES */}
       <section className="home-section home-section--black">
         <div className="home-section-inner">
           <div className="eyebrow home-eyebrow">
