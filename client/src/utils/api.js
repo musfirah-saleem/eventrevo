@@ -185,6 +185,7 @@ export const reviewAPI = {
   create: (data) => api.post('/reviews', data),
 };
 
+
 export const adminAPI = {
   getDJs: () => api.get('/admin/djs'),
   createDJ: (data) => api.post('/admin/djs', data),
